@@ -1,0 +1,35 @@
+{
+  "name": "@bosun/broker",
+  "version": "0.1.0",
+  "description": "Permission broker: policy engine, escalation queue, and the hard-floor PreToolUse hook",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "bosun-hard-floor": "./dist/hooks/hard-floor.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bosun/protocol": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
