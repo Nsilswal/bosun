@@ -48,13 +48,15 @@ infrastructure.
    errors exit 2.
 
 2. **Policy engine (programmatic).** One pure `PolicyEngine` evaluated by the
-   `PermissionBroker`, wired in through two adapters:
-   - the SDK `canUseTool` callback for supervisor-owned sessions. Note: `canUseTool` is
-     only invoked when permission evaluation falls through to a prompt, so supervisor
-     sessions run with **no allow-rules and default permission mode** — otherwise the
-     broker would be silently bypassed.
-   - a PreToolUse hook returning JSON (`permissionDecision: allow|deny|ask`) for
-     interactive `claude` sessions on the laptop.
+   `PermissionBroker`. For supervisor-owned SDK sessions the broker is wired into a
+   **PreToolUse hook, not (only) `canUseTool`** — empirically, Claude Code auto-approves
+   some tool calls internally (e.g. read-only Bash like `ls`), and those never reach
+   `canUseTool`. Hooks fire for every tool call unconditionally, so the hook asks the
+   broker and returns `permissionDecision: allow|deny`; `canUseTool` stays wired as a
+   fallback for any path that skips hooks. Sessions also run with `settingSources: []`
+   and default permission mode so user allow-rules can't bypass the broker. Interactive
+   `claude` sessions on the laptop will use the same hook shape via settings (later
+   slice).
 
    Starter policy: allow file reads and in-workspace edits; escalate Bash and anything
    touching git; hard-deny the destructive set.
