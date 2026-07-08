@@ -17,6 +17,15 @@ import {
 } from "./crypto.js";
 import type { PeerConnection, Unsubscribe } from "./types.js";
 
+// The app imports ONLY this subpath (@bosun/transport/client-core): it must
+// stay free of Node-only modules, so re-export the pure pieces from here.
+export * from "./crypto.js";
+export type {
+  PairedSupervisor,
+  PeerConnection,
+  Unsubscribe,
+} from "./types.js";
+
 /** Minimal socket surface both `ws` and React Native WebSocket satisfy. */
 export interface RawSocket {
   send(data: string): void;

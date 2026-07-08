@@ -32,15 +32,51 @@ transport (NAT hole-punching) is next — the transport interface is already des
 
 ## Quickstart
 
+The published one-liner (goal — not on npm yet):
+
 ```sh
 # on your laptop, in the workspace you want the agent to use:
-npx bosun
-
-# → prints a QR code. Scan it with the Bosun app to pair.
+npx bosun          # → prints a QR code; scan it with the Bosun app to pair
 ```
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for design, and [RELEASE.md](./RELEASE.md) for
-building the mobile app.
+Today, run the supervisor from source:
+
+```sh
+git clone https://github.com/Nsilswal/bosun && cd bosun
+pnpm install                       # builds the workspace packages
+pnpm dev /path/to/your/workspace   # starts the supervisor + prints the QR
+```
+
+You also need the app on your phone — see [RELEASE.md](./RELEASE.md) for the
+EAS dev-build steps (it can't run in Expo Go). Phone and laptop must share a
+LAN for this slice.
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the design.
+
+## Repo layout
+
+| Path | What |
+|---|---|
+| `packages/protocol` | Shared zod message schemas — the app↔supervisor contract |
+| `packages/broker` | Policy engine, escalation queue, hard-floor hook |
+| `packages/transport` | Transport interface + LAN-direct impl (mDNS, WS, NaCl handshake) |
+| `packages/supervisor` | Owns Claude Code sessions via the Agent SDK; the `bosun` CLI |
+| `apps/mobile` | The Expo app |
+
+## Development
+
+```sh
+pnpm install     # install + build packages
+pnpm test        # unit + integration tests across packages
+pnpm typecheck   # type-check every package and the app
+```
+
+Run the real end-to-end demo (spawns an actual Claude agent on loopback and
+drives an auto-approve, a phone-approved escalation, and a hard-deny):
+
+```sh
+pnpm --filter @bosun/supervisor exec tsx scripts/e2e-demo.ts
+```
 
 ## License
 

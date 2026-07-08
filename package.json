@@ -9,8 +9,10 @@
     "node": ">=20"
   },
   "scripts": {
+    "postinstall": "pnpm -r --filter './packages/*' build",
     "build": "pnpm -r --filter './packages/*' build",
+    "dev": "pnpm --filter @bosun/supervisor dev",
     "test": "pnpm -r --filter './packages/*' test",
-    "typecheck": "pnpm -r --filter './packages/*' typecheck"
+    "typecheck": "pnpm -r --filter './packages/*' typecheck && pnpm --filter @bosun/mobile typecheck"
   }
 }

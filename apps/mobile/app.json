@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Bosun",
+    "slug": "bosun",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "dev.bosun.app",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Bosun connects directly to your own supervisor on your local network.",
+        "NSBonjourServices": ["_bosun._tcp", "_bosun._tcp."]
+      }
+    },
+    "android": {
+      "package": "dev.bosun.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0E1116",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Bosun uses the camera only to scan your supervisor's pairing QR code.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      ["expo-notifications", {}]
+    ]
+  }
+}
