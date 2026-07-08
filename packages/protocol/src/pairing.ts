@@ -14,11 +14,17 @@ export const QrPayloadSchema = z.object({
   /** Discriminator so the app can reject non-Bosun QR codes. */
   bosun: z.literal(1),
   name: z.string(),
-  /** Candidate addresses, tried in order. */
+  /** Candidate LAN addresses, tried in order (LAN-direct transport). */
   addrs: z.array(z.object({ host: z.string(), port: z.number().int() })),
   supervisorPublicKey: z.string(),
   pairingToken: z.string(),
   expiresAt: z.number(),
+  /**
+   * iroh endpoint ticket for the off-Wi-Fi P2P transport. When present the
+   * app can reach the supervisor across NATs by dialing this instead of a
+   * LAN address. Optional so LAN-only supervisors and older apps interop.
+   */
+  p2pTicket: z.string().optional(),
 });
 export type QrPayload = z.infer<typeof QrPayloadSchema>;
 

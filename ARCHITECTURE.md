@@ -89,12 +89,20 @@ concerns.
 
 - **LAN-direct (implemented):** supervisor advertises via mDNS/Bonjour; app discovers it;
   WebSocket + the handshake above. Zero infrastructure.
-- **P2P (next):** the supervisor embeds a NAT-traversal stack (iroh vs js-libp2p — under
-  evaluation) for a direct encrypted path off-Wi-Fi, with a relay fallback for networks
-  where hole-punching fails. Whose signaling/bootstrap/relay infrastructure to use is an
-  open decision; transport constructors take that config so the choice is swappable and
-  not baked into callers.
+- **P2P (supervisor + Node client implemented; mobile native module pending):** the
+  supervisor embeds [iroh](https://iroh.computer) (QUIC + NAT traversal) for a direct
+  encrypted path off-Wi-Fi, with an encrypted relay fallback where hole-punching fails.
+  iroh only provides the byte pipe — Bosun's identity, pairing, allowlist, and NaCl
+  encryption ride on top of a QUIC stream unchanged, so it's one security model across
+  both transports. The relay/signaling choice (`n0` public relays, `disabled`, or
+  self-hosted `custom` URLs) is injected as config, never baked into callers. See
+  [ADR 0001](./docs/adr/0001-p2p-transport.md) for the iroh-over-libp2p decision.
 - **Manual URL:** escape hatch for users with their own tunnel.
+
+Callers select a transport through `createTransportServer({ kind: "lan" | "p2p", … })`
+and only ever see `TransportServer` / `PeerConnection`; the LAN and P2P server handshakes
+share one socket-agnostic core (`server-core` + `client-core`), so the wire protocol is
+identical regardless of the underlying pipe.
 
 ## Session handoff (design; not in current slice)
 

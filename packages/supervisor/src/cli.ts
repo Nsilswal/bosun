@@ -4,13 +4,17 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import qrcode from "qrcode-terminal";
 import { Broker, InMemoryEscalationQueue, StarterPolicy } from "@bosun/broker";
-import { LanTransportServer } from "@bosun/transport";
+import { createTransportServer, type RelayConfig } from "@bosun/transport";
 import { ClaudeAgentRunner } from "./agent/claude-runner.js";
 import { PairingManager } from "./pairing.js";
 import { sendEscalationPush } from "./push.js";
 import { ProtocolServer } from "./server.js";
 import { SessionManager } from "./session.js";
-import { DeviceAllowlist, loadOrCreateIdentity } from "./state.js";
+import {
+  DeviceAllowlist,
+  loadOrCreateIdentity,
+  loadOrCreateIrohSecret,
+} from "./state.js";
 
 const DEFAULT_PORT = 45450;
 const PAIRING_TTL_MS = 10 * 60 * 1000;
@@ -22,6 +26,8 @@ async function main(): Promise<void> {
     options: {
       name: { type: "string" },
       port: { type: "string" },
+      transport: { type: "string" },
+      relay: { type: "string" },
       "no-pair": { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
@@ -30,11 +36,14 @@ async function main(): Promise<void> {
   if (values.help) {
     console.log(`bosun — supervise Claude Code agents from your phone
 
-usage: bosun [workspace-dir] [--name <name>] [--port <port>] [--no-pair]
+usage: bosun [workspace-dir] [--name <name>] [--port <port>]
+             [--transport lan|p2p] [--relay n0|disabled] [--no-pair]
 
   workspace-dir   agent workspace (default: current directory)
   --name          supervisor name shown in the app (default: hostname)
-  --port          listen port (default: ${DEFAULT_PORT})
+  --port          LAN listen port (default: ${DEFAULT_PORT})
+  --transport     lan (same network, default) or p2p (off-Wi-Fi, iroh)
+  --relay         p2p only: n0 public relays (default) or disabled (direct)
   --no-pair       don't print a pairing QR (already-paired devices only)`);
     return;
   }
@@ -51,10 +60,17 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>] [--no-pair]
   const broker = new Broker(new StarterPolicy(), queue);
   const sessions = new SessionManager(new ClaudeAgentRunner(), broker);
 
-  const transport = new LanTransportServer({
+  const kind = values.transport === "p2p" ? "p2p" : "lan";
+  const relay: RelayConfig =
+    values.relay === "disabled" ? { mode: "disabled" } : { mode: "n0" };
+  const transport = createTransportServer({
+    kind,
     identity,
     name,
     port,
+    ...(kind === "p2p"
+      ? { irohSecretKey: loadOrCreateIrohSecret(), relay }
+      : {}),
     isAuthorized: (pk) => allowlist.has(pk),
     onPairRequest: (req) => {
       if (!pairing.redeem(req.pairingToken)) {
@@ -100,6 +116,7 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>] [--no-pair]
   console.log(`\nbosun supervisor "${name}"`);
   console.log(`  workspace: ${cwd}`);
   console.log(`  session:   ${session.id}`);
+  console.log(`  transport: ${kind}${kind === "p2p" ? ` (relay: ${relay.mode})` : ""}`);
   for (const a of transport.addresses()) {
     console.log(`  listening: ${a.host}:${a.port}`);
   }

@@ -30,6 +30,9 @@
     "tweetnacl": "^1.0.3",
     "ws": "^8.18.0"
   },
+  "optionalDependencies": {
+    "@number0/iroh": "^1.0.0"
+  },
   "devDependencies": {
     "@types/node": "^26.1.0",
     "@types/ws": "^8.5.13",

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { randomBytes } from "node:crypto";
 import {
   generateIdentity,
   identityFromSecretKey,
@@ -33,6 +34,23 @@ export function loadOrCreateIdentity(home = bosunHome()): StoredIdentity {
     { mode: 0o600 },
   );
   return identity;
+}
+
+/**
+ * Stable 32-byte iroh secret key for the P2P transport → stable node id, so
+ * the supervisor's dial address survives restarts. Kept separate from the
+ * Bosun device identity (different key, different purpose).
+ */
+export function loadOrCreateIrohSecret(home = bosunHome()): number[] {
+  const file = path.join(home, "iroh-key.json");
+  if (fs.existsSync(file)) {
+    return (JSON.parse(fs.readFileSync(file, "utf8")) as { secret: number[] })
+      .secret;
+  }
+  const secret = Array.from(randomBytes(32));
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ secret }), { mode: 0o600 });
+  return secret;
 }
 
 export interface PairedDevice {

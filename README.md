@@ -26,9 +26,11 @@ Bosun lets you start a Claude Code session at your laptop and supervise it from 
 
 ## Status
 
-Early. The current vertical slice: LAN-direct transport, QR pairing, live session streaming,
-and the escalation approve/deny round-trip on a physical phone. Off-Wi-Fi peer-to-peer
-transport (NAT hole-punching) is next — the transport interface is already designed for it.
+Early. Working: LAN-direct transport, QR pairing, live session streaming, and the
+escalation approve/deny round-trip. Off-Wi-Fi peer-to-peer transport (iroh QUIC + NAT
+hole-punching) is implemented and verified on the supervisor and a Node client
+(`scripts/p2p-loopback.ts`); the mobile side needs a native iroh module. See
+[ADR 0001](./docs/adr/0001-p2p-transport.md).
 
 ## Quickstart
 
@@ -76,6 +78,13 @@ drives an auto-approve, a phone-approved escalation, and a hard-deny):
 
 ```sh
 pnpm --filter @bosun/supervisor exec tsx scripts/e2e-demo.ts
+```
+
+Verify the P2P transport (full pairing + handshake + protocol over real iroh QUIC,
+loopback, relays disabled):
+
+```sh
+pnpm --filter @bosun/transport exec tsx scripts/p2p-loopback.ts
 ```
 
 ## License

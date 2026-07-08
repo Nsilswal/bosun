@@ -1,13 +1,9 @@
 import os from "node:os";
 import { Bonjour, type Service } from "bonjour-service";
 import { WebSocketServer, type WebSocket } from "ws";
-import {
-  EnvelopeSchema,
-  PreAuthMessageSchema,
-  type Envelope,
-  type QrPayload,
-} from "@bosun/protocol";
-import { acceptHello, type SessionCrypto } from "../crypto.js";
+import type { QrPayload } from "@bosun/protocol";
+import type { RawSocket } from "../client-core.js";
+import { acceptConnection } from "../server-core.js";
 import type {
   PeerConnection,
   TransportServer,
@@ -91,79 +87,21 @@ export class LanTransportServer implements TransportServer {
   }
 
   private handleSocket(ws: WebSocket): void {
-    let session: SessionCrypto | undefined;
-    const messageListeners = new Set<(env: Envelope) => void>();
-    const closeListeners = new Set<() => void>();
-
-    ws.on("close", () => {
-      for (const cb of closeListeners) cb();
-    });
-
-    ws.on("message", (raw) => {
-      const data = raw.toString();
-
-      if (session) {
-        const opened = session.open(data);
-        if (opened === null) return; // undecryptable: drop frame
-        const parsed = EnvelopeSchema.safeParse(opened);
-        if (!parsed.success) return;
-        for (const cb of messageListeners) cb(parsed.data);
-        return;
-      }
-
-      let preAuth;
-      try {
-        preAuth = PreAuthMessageSchema.parse(JSON.parse(data));
-      } catch {
-        ws.close();
-        return;
-      }
-
-      if (preAuth.type === "pair.request") {
-        ws.send(JSON.stringify(this.opts.onPairRequest(preAuth)));
-        return; // socket stays open; client follows with hs.hello
-      }
-
-      if (preAuth.type === "hs.hello") {
-        if (!this.opts.isAuthorized(preAuth.devicePublicKey)) {
-          ws.send(
-            JSON.stringify({ type: "hs.reject", message: "device not paired" }),
-          );
-          ws.close();
-          return;
-        }
-        const accepted = acceptHello(preAuth, this.opts.identity);
-        if (!accepted) {
-          ws.send(
-            JSON.stringify({ type: "hs.reject", message: "bad signature" }),
-          );
-          ws.close();
-          return;
-        }
-        session = accepted.session;
-        ws.send(JSON.stringify(accepted.message));
-
-        const conn: PeerConnection = {
-          peerPublicKey: accepted.session.peerPublicKey,
-          send: (env) => {
-            if (ws.readyState === ws.OPEN) ws.send(accepted.session.seal(env));
-          },
-          onMessage: (cb): Unsubscribe => {
-            messageListeners.add(cb);
-            return () => messageListeners.delete(cb);
-          },
-          onClose: (cb): Unsubscribe => {
-            closeListeners.add(cb);
-            return () => closeListeners.delete(cb);
-          },
-          close: () => ws.close(),
-        };
+    const socket: RawSocket = {
+      send: (data) => {
+        if (ws.readyState === ws.OPEN) ws.send(data);
+      },
+      close: () => ws.close(),
+      onMessage: (cb) => ws.on("message", (raw) => cb(raw.toString())),
+      onClose: (cb) => ws.on("close", () => cb()),
+    };
+    acceptConnection(socket, {
+      identity: this.opts.identity,
+      isAuthorized: this.opts.isAuthorized,
+      onPairRequest: this.opts.onPairRequest,
+      onConnection: (conn) => {
         for (const cb of this.connectionListeners) cb(conn);
-        return;
-      }
-
-      // Anything else pre-auth is a protocol violation.
-      ws.close();
+      },
     });
   }
 }
