@@ -1,0 +1,16 @@
+{
+  "name": "bosun",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Supervise Claude Code agents from your phone. Self-hosted, no accounts, agents never leave your machine.",
+  "license": "MIT",
+  "packageManager": "pnpm@11.10.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter './packages/*' build",
+    "test": "pnpm -r --filter './packages/*' test",
+    "typecheck": "pnpm -r --filter './packages/*' typecheck"
+  }
+}

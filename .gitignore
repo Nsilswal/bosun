@@ -1,0 +1,25 @@
+# deps
+node_modules/
+
+# build output
+dist/
+*.tsbuildinfo
+
+# env & local state
+.env
+.env.*
+*.local
+.bosun/
+
+# expo / react native
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
+apps/mobile/web-build/
+
+# logs & OS noise
+*.log
+.DS_Store
+
+# test coverage
+coverage/
