@@ -1,0 +1,39 @@
+{
+  "name": "@bosun/transport",
+  "version": "0.1.0",
+  "description": "Transport interfaces + LAN-direct implementation (mDNS, WebSocket, app-layer encryption)",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client-core": {
+      "types": "./dist/client-core.d.ts",
+      "default": "./dist/client-core.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bosun/protocol": "workspace:*",
+    "bonjour-service": "^1.4.2",
+    "tweetnacl": "^1.0.3",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
