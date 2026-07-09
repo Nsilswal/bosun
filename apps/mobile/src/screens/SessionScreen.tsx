@@ -17,6 +17,7 @@ import { colors, statusColor } from "../theme";
 export function SessionScreen() {
   const supervisor = useBosun((s) => s.supervisor);
   const phase = useBosun((s) => s.phase);
+  const activeTransport = useBosun((s) => s.activeTransport);
   const status = useBosun((s) => s.sessionStatus);
   const events = useBosun((s) => s.events);
   const pending = useBosun((s) => s.pending);
@@ -54,6 +55,9 @@ export function SessionScreen() {
             />
             <Text style={styles.statusText}>
               {online ? status.replace("_", " ") : phase}
+              {online && activeTransport
+                ? ` · ${activeTransport.toUpperCase()}`
+                : ""}
             </Text>
           </View>
         </View>

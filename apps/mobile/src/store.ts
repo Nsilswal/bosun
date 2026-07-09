@@ -8,10 +8,10 @@ import type {
   SessionSummary,
 } from "@bosun/protocol";
 import type {
-  PairedSupervisor,
   PeerConnection,
   StoredIdentity,
 } from "@bosun/transport/client-core";
+import type { StoredSupervisor, TransportId } from "./storage";
 
 export type ConnectionPhase =
   | "boot"
@@ -23,10 +23,12 @@ export type ConnectionPhase =
 
 interface BosunState {
   identity?: StoredIdentity;
-  supervisor?: PairedSupervisor;
+  supervisor?: StoredSupervisor;
   phase: ConnectionPhase;
   conn?: PeerConnection;
   connError?: string;
+  /** Transport carrying the live connection ("lan" | "p2p"). */
+  activeTransport?: TransportId;
 
   sessions: SessionSummary[];
   activeSessionId?: string;
@@ -104,6 +106,7 @@ export const useBosun = create<BosunState>((set, get) => ({
   reset: () =>
     set({
       conn: undefined,
+      activeTransport: undefined,
       sessions: [],
       activeSessionId: undefined,
       sessionStatus: "starting",

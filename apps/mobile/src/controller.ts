@@ -5,15 +5,17 @@
 import type { QrPayload } from "@bosun/protocol";
 import type { PeerConnection } from "@bosun/transport/client-core";
 import * as Device from "expo-device";
-import {
-  connectToSupervisor,
-  makeRequester,
-  pairWithSupervisor,
-  sendMessage,
-} from "./connection";
+import { makeRequester, sendMessage } from "./connection";
+import { connectToSupervisor, pairWithSupervisor } from "./transport";
 import { loadDeviceIdentity } from "./identity";
 import { registerForPush } from "./push";
-import { loadSupervisor, saveSupervisor, forgetSupervisor } from "./storage";
+import {
+  loadSupervisor,
+  saveSupervisor,
+  forgetSupervisor,
+  type StoredSupervisor,
+  type TransportId,
+} from "./storage";
 import { useBosun } from "./store";
 
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -36,13 +38,13 @@ export async function pair(qr: QrPayload): Promise<void> {
   useBosun.getState().set({ phase: "connecting", connError: undefined });
   try {
     const deviceName = Device.deviceName ?? "phone";
-    const { supervisor, conn } = await pairWithSupervisor(
+    const { supervisor, conn, transport } = await pairWithSupervisor(
       qr,
       identity,
       deviceName,
     );
     await saveSupervisor(supervisor);
-    useBosun.getState().set({ supervisor });
+    useBosun.getState().set({ supervisor, activeTransport: transport });
     await adopt(conn);
   } catch (err) {
     useBosun.getState().set({
@@ -59,7 +61,17 @@ export async function connect(): Promise<void> {
   if (phase === "connected") return;
   useBosun.getState().set({ phase: "connecting", connError: undefined });
   try {
-    const conn = await connectToSupervisor(supervisor, identity);
+    const { conn, transport } = await connectToSupervisor(supervisor, identity);
+    // Remember the transport that worked so we try it first next time.
+    if (supervisor.preferredTransport !== transport) {
+      const updated: StoredSupervisor = {
+        ...supervisor,
+        preferredTransport: transport,
+      };
+      await saveSupervisor(updated);
+      useBosun.getState().set({ supervisor: updated });
+    }
+    useBosun.getState().set({ activeTransport: transport });
     await adopt(conn);
   } catch (err) {
     useBosun.getState().set({
