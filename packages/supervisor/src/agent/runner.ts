@@ -14,6 +14,11 @@ export interface AgentStartOptions {
   localSessionId: string;
   cwd: string;
   broker: PermissionBroker;
+  /**
+   * Model alias for the agent (SDK `model` option, e.g. "opus"). Omit to let
+   * the SDK use the machine's configured default.
+   */
+  model?: string;
   /** Resume a provider session (SDK `resume`). Handoff slice — unused today. */
   resumeProviderSessionId?: string;
   /**

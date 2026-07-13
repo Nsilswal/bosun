@@ -44,6 +44,11 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("session.start"),
     cwd: z.string().optional(),
+    /**
+     * Model alias for the agent (e.g. "opus", "sonnet", "haiku"). Omit to use
+     * the supervisor machine's configured default. See MODEL_OPTIONS.
+     */
+    model: z.string().optional(),
   }),
   z.object({
     type: z.literal("session.stop"),

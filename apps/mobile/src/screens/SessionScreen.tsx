@@ -17,6 +17,7 @@ import type {
   SequencedEvent,
   SessionSummary,
 } from "@bosun/protocol";
+import { DEFAULT_MODEL_ID, MODEL_OPTIONS, resolveModel } from "@bosun/protocol";
 import {
   decideEscalation,
   interruptAgent,
@@ -82,6 +83,7 @@ function Sidebar({
   const activeSessionId = useBosun((s) => s.activeSessionId);
   const pending = useBosun((s) => s.pending);
   const supervisor = useBosun((s) => s.supervisor);
+  const [modelId, setModelId] = useState<string>(DEFAULT_MODEL_ID);
 
   const pendingFor = (id: string) =>
     pending.filter((p) => p.request.sessionId === id).length;
@@ -131,10 +133,33 @@ function Sidebar({
             })}
           </ScrollView>
 
+          <Text style={styles.modelLabel}>Model</Text>
+          <View style={styles.modelRow}>
+            {MODEL_OPTIONS.map((m) => {
+              const selected = m.id === modelId;
+              return (
+                <Pressable
+                  key={m.id}
+                  style={[styles.modelChip, selected && styles.modelChipActive]}
+                  onPress={() => setModelId(m.id)}
+                >
+                  <Text
+                    style={[
+                      styles.modelChipText,
+                      selected && styles.modelChipTextActive,
+                    ]}
+                  >
+                    {m.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <Pressable
             style={styles.newSessionBtn}
             onPress={() => {
-              void startSession();
+              void startSession(resolveModel(modelId));
               onClose();
             }}
           >
@@ -434,6 +459,27 @@ const styles = StyleSheet.create({
   sessionStateRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 16 },
   stateDot: { width: 8, height: 8, borderRadius: 4 },
   stateText: { fontSize: 13 },
+  modelLabel: {
+    color: colors.textDim,
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  modelRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  modelChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  modelChipActive: { borderColor: colors.accent, backgroundColor: colors.surfaceRaised },
+  modelChipText: { color: colors.textDim, fontSize: 13, fontWeight: "600" },
+  modelChipTextActive: { color: colors.accent },
   newSessionBtn: {
     marginTop: 8,
     paddingVertical: 14,

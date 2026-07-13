@@ -82,19 +82,24 @@ export class SessionManager {
   constructor(
     private readonly runner: AgentRunner,
     private readonly broker: PermissionBroker,
-    private readonly defaults: { skipPermissions?: boolean } = {},
+    private readonly defaults: { skipPermissions?: boolean; model?: string } = {},
   ) {}
 
-  start(cwd: string, opts: { skipPermissions?: boolean } = {}): Session {
+  start(
+    cwd: string,
+    opts: { skipPermissions?: boolean; model?: string } = {},
+  ): Session {
     // The id must exist before the runner starts: the broker's tool requests
     // reference it, and escalations must agree with the event stream.
     const localSessionId = randomUUID();
     const skipPermissions = opts.skipPermissions ?? this.defaults.skipPermissions;
+    const model = opts.model ?? this.defaults.model;
     const handle = this.runner.start({
       localSessionId,
       cwd,
       broker: this.broker,
       ...(skipPermissions !== undefined ? { skipPermissions } : {}),
+      ...(model !== undefined ? { model } : {}),
     });
     const session = new Session(localSessionId, cwd, handle, (id, ev) => {
       for (const cb of this.listeners) cb(id, ev);

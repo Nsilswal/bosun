@@ -106,6 +106,7 @@ export class ClaudeAgentRunner implements AgentRunner {
       hooks: {
         PreToolUse: [{ hooks: [brokerHook], timeout: BROKER_HOOK_TIMEOUT_S }],
       },
+      ...(opts.model !== undefined ? { model: opts.model } : {}),
       ...(opts.resumeProviderSessionId !== undefined
         ? { resume: opts.resumeProviderSessionId }
         : {}),
