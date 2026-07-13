@@ -175,11 +175,17 @@ export function decideEscalation(
   sendMessage(conn, { type: "escalation.decide", escalationId, decision });
 }
 
-/** Spawn a new agent session and make it active (reply is its snapshot). */
-export async function startSession(): Promise<void> {
+/**
+ * Spawn a new agent session and make it active (reply is its snapshot).
+ * `model` is an alias (e.g. "opus"); omit to use the supervisor's default.
+ */
+export async function startSession(model?: string): Promise<void> {
   const { conn } = useBosun.getState();
   if (!conn) return;
-  const snap = await makeRequester(conn)({ type: "session.start" });
+  const snap = await makeRequester(conn)({
+    type: "session.start",
+    ...(model !== undefined ? { model } : {}),
+  });
   useBosun.getState().applyServerMessage(snap as never);
 }
 

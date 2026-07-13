@@ -126,7 +126,9 @@ export class ProtocolServer {
       case "session.start": {
         // Spawn and attach the requester in one round-trip: the reply is the
         // new session's snapshot (all devices get the list via onChange).
-        const session = this.sessions.start(msg.cwd ?? this.hooks.defaultCwd);
+        const session = this.sessions.start(msg.cwd ?? this.hooks.defaultCwd, {
+          ...(msg.model !== undefined ? { model: msg.model } : {}),
+        });
         this.attachments.get(conn)?.add(session.id);
         return {
           type: "session.snapshot",

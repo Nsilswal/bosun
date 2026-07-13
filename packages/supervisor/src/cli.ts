@@ -26,6 +26,7 @@ async function main(): Promise<void> {
     options: {
       name: { type: "string" },
       port: { type: "string" },
+      model: { type: "string" },
       transport: { type: "string" },
       relay: { type: "string" },
       "no-pair": { type: "boolean" },
@@ -43,6 +44,9 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>]
   workspace-dir   agent workspace (default: current directory)
   --name          supervisor name shown in the app (default: hostname)
   --port          LAN listen port (default: ${DEFAULT_PORT})
+  --model         default model alias for new sessions (e.g. opus, sonnet,
+                  haiku). The app can override per session. Default: inherit
+                  the machine's Claude Code model.
   --transport     lan (same network, default) or p2p (off-Wi-Fi, iroh)
   --relay         p2p only: n0 public relays (default) or disabled (direct)
   --no-pair       don't print a pairing QR (already-paired devices only)
@@ -62,10 +66,12 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>]
   const pairing = new PairingManager();
 
   const skipPermissions = values["dangerously-skip-permissions"] === true;
+  const model = values.model;
   const queue = new InMemoryEscalationQueue(ESCALATION_TIMEOUT_MS);
   const broker = new Broker(new StarterPolicy(), queue);
   const sessions = new SessionManager(new ClaudeAgentRunner(), broker, {
     skipPermissions,
+    ...(model !== undefined ? { model } : {}),
   });
 
   const kind = values.transport === "p2p" ? "p2p" : "lan";
@@ -125,6 +131,7 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>]
   console.log(`\nbosun supervisor "${name}"`);
   console.log(`  workspace: ${cwd}`);
   console.log(`  session:   ${session.id}`);
+  console.log(`  model:     ${model ?? "machine default"}`);
   console.log(`  transport: ${kind}${kind === "p2p" ? ` (relay: ${relay.mode})` : ""}`);
   console.log(
     `  mode:      ${skipPermissions ? "⚠ skip-permissions (unattended; hard floor only, no escalations)" : "supervised (escalations → phone)"}`,
