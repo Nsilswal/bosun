@@ -1,18 +1,151 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import type { PendingEscalation, SequencedEvent } from "@bosun/protocol";
-import { decideEscalation, interruptAgent, sendPrompt, unpair } from "../controller";
+import type {
+  PendingEscalation,
+  SequencedEvent,
+  SessionSummary,
+} from "@bosun/protocol";
+import {
+  decideEscalation,
+  interruptAgent,
+  sendPrompt,
+  startSession,
+  stopSession,
+  switchSession,
+  unpair,
+} from "../controller";
 import { useBosun } from "../store";
 import { colors, statusColor } from "../theme";
+
+function workspaceLabel(cwd: string): string {
+  const parts = cwd.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? cwd;
+}
+
+type SessionUiState =
+  | { kind: "waiting"; label: string; color: string }
+  | { kind: "working"; label: string; color: string }
+  | { kind: "idle"; label: string; color: string }
+  | { kind: "other"; label: string; color: string };
+
+function sessionUiState(
+  status: SessionSummary["status"],
+  pendingCount: number,
+): SessionUiState {
+  if (pendingCount > 0) {
+    return { kind: "waiting", label: "Waiting for you", color: colors.warn };
+  }
+  switch (status) {
+    case "running":
+      return { kind: "working", label: "Working…", color: colors.accent };
+    case "idle":
+      return { kind: "idle", label: "Idle", color: colors.ok };
+    case "starting":
+      return { kind: "other", label: "Starting…", color: colors.textDim };
+    case "error":
+      return { kind: "other", label: "Error", color: colors.danger };
+    case "exited":
+      return { kind: "other", label: "Exited", color: colors.textDim };
+    default:
+      return { kind: "other", label: status, color: colors.textDim };
+  }
+}
+
+/** Small leading indicator: spinner while working, coloured dot otherwise. */
+function StateIndicator({ state }: { state: SessionUiState }) {
+  if (state.kind === "working") {
+    return <ActivityIndicator size="small" color={state.color} />;
+  }
+  return <View style={[styles.stateDot, { backgroundColor: state.color }]} />;
+}
+
+function Sidebar({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const sessions = useBosun((s) => s.sessions);
+  const activeSessionId = useBosun((s) => s.activeSessionId);
+  const pending = useBosun((s) => s.pending);
+  const supervisor = useBosun((s) => s.supervisor);
+
+  const pendingFor = (id: string) =>
+    pending.filter((p) => p.request.sessionId === id).length;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <Pressable style={styles.sidebar} onPress={() => {}}>
+          <Text style={styles.sidebarSup}>{supervisor?.name ?? "supervisor"}</Text>
+          <Text style={styles.sidebarTitle}>Sessions</Text>
+
+          <ScrollView style={styles.sidebarList}>
+            {sessions.map((s) => {
+              const count = pendingFor(s.sessionId);
+              const state = sessionUiState(s.status, count);
+              const active = s.sessionId === activeSessionId;
+              return (
+                <Pressable
+                  key={s.sessionId}
+                  style={[styles.sessionRow, active && styles.sessionRowActive]}
+                  onPress={() => {
+                    void switchSession(s.sessionId);
+                    onClose();
+                  }}
+                  onLongPress={() => stopSession(s.sessionId)}
+                >
+                  <View style={styles.sessionRowTop}>
+                    <Text style={styles.sessionName} numberOfLines={1}>
+                      {workspaceLabel(s.cwd)}
+                    </Text>
+                    {active && <Text style={styles.activeTick}>✓</Text>}
+                  </View>
+                  <View style={styles.sessionStateRow}>
+                    <StateIndicator state={state} />
+                    <Text style={[styles.stateText, { color: state.color }]}>
+                      {state.label}
+                      {count > 0 ? ` · ${count}` : ""}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <Pressable
+            style={styles.newSessionBtn}
+            onPress={() => {
+              void startSession();
+              onClose();
+            }}
+          >
+            <Text style={styles.newSessionText}>＋  New session</Text>
+          </Pressable>
+          <Text style={styles.sidebarHint}>Long-press a session to stop it</Text>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
 
 export function SessionScreen() {
   const supervisor = useBosun((s) => s.supervisor);
@@ -21,8 +154,27 @@ export function SessionScreen() {
   const status = useBosun((s) => s.sessionStatus);
   const events = useBosun((s) => s.events);
   const pending = useBosun((s) => s.pending);
+  const sessions = useBosun((s) => s.sessions);
+  const activeSessionId = useBosun((s) => s.activeSessionId);
   const [draft, setDraft] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const list = useRef<FlatList<SequencedEvent>>(null);
+
+  const activeCwd = sessions.find(
+    (s) => s.sessionId === activeSessionId,
+  )?.cwd;
+  const headerTitle = activeCwd
+    ? workspaceLabel(activeCwd)
+    : (supervisor?.name ?? "agent");
+
+  // Cards belong to the session currently in view.
+  const activePending = pending.filter(
+    (p) => p.request.sessionId === activeSessionId,
+  );
+  // A background session needs attention → dot on the menu button.
+  const backgroundNeedsYou = pending.some(
+    (p) => p.request.sessionId !== activeSessionId,
+  );
 
   useEffect(() => {
     const t = setTimeout(() => list.current?.scrollToEnd({ animated: true }), 50);
@@ -44,8 +196,18 @@ export function SessionScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.header}>
+        <Pressable
+          style={styles.menuBtn}
+          onPress={() => setSidebarOpen(true)}
+          hitSlop={8}
+        >
+          <Text style={styles.menuIcon}>☰</Text>
+          {backgroundNeedsYou && <View style={styles.menuBadge} />}
+        </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>{supervisor?.name ?? "agent"}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {headerTitle}
+          </Text>
           <View style={styles.statusRow}>
             <View
               style={[
@@ -71,6 +233,8 @@ export function SessionScreen() {
         </Pressable>
       </View>
 
+      <Sidebar visible={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
       <FlatList
         ref={list}
         style={styles.list}
@@ -80,7 +244,7 @@ export function SessionScreen() {
         renderItem={({ item }) => <EventRow item={item} />}
       />
 
-      {pending.map((esc) => (
+      {activePending.map((esc) => (
         <EscalationCard key={esc.id} escalation={esc} />
       ))}
 
@@ -204,6 +368,19 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     gap: 12,
   },
+  menuBtn: { width: 28, alignItems: "flex-start", justifyContent: "center" },
+  menuIcon: { color: colors.text, fontSize: 22 },
+  menuBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.warn,
+    borderWidth: 1,
+    borderColor: colors.bg,
+  },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   dot: { width: 8, height: 8, borderRadius: 4 },
@@ -217,6 +394,56 @@ const styles = StyleSheet.create({
   },
   stopBtnText: { color: colors.danger, fontSize: 13 },
   unpair: { color: colors.textDim, fontSize: 13 },
+
+  // Sidebar drawer
+  backdrop: { flex: 1, flexDirection: "row", backgroundColor: "#000A" },
+  sidebar: {
+    width: 300,
+    maxWidth: "82%",
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
+    paddingTop: 64,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  sidebarSup: { color: colors.textDim, fontSize: 13 },
+  sidebarTitle: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: "700",
+    marginTop: 2,
+    marginBottom: 12,
+  },
+  sidebarList: { flex: 1 },
+  sessionRow: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 6,
+  },
+  sessionRowActive: { borderColor: colors.accent, backgroundColor: colors.surfaceRaised },
+  sessionRowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  sessionName: { color: colors.text, fontSize: 15, fontWeight: "600", flex: 1 },
+  activeTick: { color: colors.accent, fontSize: 15, fontWeight: "700" },
+  sessionStateRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 16 },
+  stateDot: { width: 8, height: 8, borderRadius: 4 },
+  stateText: { fontSize: 13 },
+  newSessionBtn: {
+    marginTop: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: colors.accent,
+  },
+  newSessionText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  sidebarHint: { color: colors.textDim, fontSize: 12, textAlign: "center", marginTop: 10 },
+
   list: { flex: 1 },
   listContent: { padding: 12, gap: 8 },
   bubble: { maxWidth: "85%", borderRadius: 14, padding: 12 },

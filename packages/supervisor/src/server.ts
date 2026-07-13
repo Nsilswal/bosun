@@ -23,15 +23,25 @@ export class ProtocolServer {
     private readonly sessions: SessionManager,
     private readonly queue: EscalationQueue,
     private readonly hooks: {
+      /** Workspace for sessions started without an explicit cwd. */
+      defaultCwd: string;
       onPushRegister?(devicePublicKey: string, token: string): void;
       onEscalationNew?(): void;
-    } = {},
+    },
   ) {
     sessions.onEvent((sessionId, event) => {
       this.broadcast(
         { type: "agent.event", sessionId, event },
         (conn) => this.attachments.get(conn)?.has(sessionId) ?? false,
       );
+    });
+
+    // Keep every device's session list in sync as sessions start/stop.
+    sessions.onChange(() => {
+      this.broadcast({
+        type: "session.list.result",
+        sessions: this.sessions.list(),
+      });
     });
 
     queue.onChange((change) => {
@@ -110,6 +120,29 @@ export class ProtocolServer {
         const session = this.sessions.get(msg.sessionId);
         if (!session) return { type: "error", message: "unknown session" };
         void session.interrupt();
+        return { type: "ok" };
+      }
+
+      case "session.start": {
+        // Spawn and attach the requester in one round-trip: the reply is the
+        // new session's snapshot (all devices get the list via onChange).
+        const session = this.sessions.start(msg.cwd ?? this.hooks.defaultCwd);
+        this.attachments.get(conn)?.add(session.id);
+        return {
+          type: "session.snapshot",
+          sessionId: session.id,
+          status: session.status,
+          cwd: session.cwd,
+          events: session.eventsSince(),
+          pendingEscalations: [],
+        };
+      }
+
+      case "session.stop": {
+        if (!this.sessions.get(msg.sessionId)) {
+          return { type: "error", message: "unknown session" };
+        }
+        void this.sessions.stop(msg.sessionId);
         return { type: "ok" };
       }
 

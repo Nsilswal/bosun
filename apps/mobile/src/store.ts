@@ -54,16 +54,33 @@ export const useBosun = create<BosunState>((set, get) => ({
   applyServerMessage: (msg) => {
     const state = get();
     switch (msg.type) {
-      case "session.list.result":
-        set({ sessions: msg.sessions });
+      case "session.list.result": {
+        const next: Partial<BosunState> = { sessions: msg.sessions };
+        // If the active session was stopped elsewhere, drop the stale view.
+        if (
+          state.activeSessionId &&
+          !msg.sessions.some((s) => s.sessionId === state.activeSessionId)
+        ) {
+          next.activeSessionId = undefined;
+          next.events = [];
+          next.sessionStatus = "exited";
+        }
+        set(next);
         return;
+      }
 
       case "session.snapshot": {
         set({
           activeSessionId: msg.sessionId,
           sessionStatus: msg.status,
           events: msg.events,
-          pending: msg.pendingEscalations,
+          // Replace only this session's pending; keep other sessions' cards.
+          pending: [
+            ...state.pending.filter(
+              (p) => p.request.sessionId !== msg.sessionId,
+            ),
+            ...msg.pendingEscalations,
+          ],
         });
         return;
       }

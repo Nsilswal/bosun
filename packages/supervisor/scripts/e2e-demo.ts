@@ -33,7 +33,7 @@ fs.writeFileSync(
 const queue = new InMemoryEscalationQueue(60_000);
 const broker = new Broker(new StarterPolicy(), queue);
 const sessions = new SessionManager(new ClaudeAgentRunner(), broker);
-const protocol = new ProtocolServer(sessions, queue);
+const protocol = new ProtocolServer(sessions, queue, { defaultCwd: workspace });
 const serverIdentity = generateIdentity();
 const allowlist = new Set<string>();
 const transport = new LanTransportServer({

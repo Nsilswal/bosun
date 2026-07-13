@@ -88,7 +88,9 @@ async function harness(): Promise<Harness> {
   const queue = new InMemoryEscalationQueue(30_000);
   const broker: PermissionBroker = new Broker(new StarterPolicy(), queue);
   const sessions = new SessionManager(new FakeRunner(), broker);
-  const protocol = new ProtocolServer(sessions, queue);
+  const protocol = new ProtocolServer(sessions, queue, {
+    defaultCwd: "/tmp/fake-workspace",
+  });
 
   const serverIdentity = generateIdentity();
   const allowlist = new Set<string>();
@@ -268,5 +270,53 @@ describe("ProtocolServer end-to-end (fake agent, real broker/transport)", () => 
       text: "x",
     });
     expect(err.type).toBe("error");
+  });
+
+  it("starts, lists, and stops multiple concurrent sessions", async () => {
+    const h = await harness();
+    harnesses.push(h);
+
+    // One session exists from harness setup.
+    const before = await h.request({ type: "session.list" });
+    const initialCount =
+      before.type === "session.list.result" ? before.sessions.length : 0;
+    expect(initialCount).toBe(1);
+
+    // Start two more; each reply is that session's snapshot.
+    const startA = await h.request({ type: "session.start" });
+    expect(startA.type).toBe("session.snapshot");
+    const startB = await h.request({ type: "session.start" });
+    expect(startB.type).toBe("session.snapshot");
+    const idA =
+      startA.type === "session.snapshot" ? startA.sessionId : "";
+    const idB =
+      startB.type === "session.snapshot" ? startB.sessionId : "";
+    expect(idA).not.toBe(idB);
+
+    const after = await h.request({ type: "session.list" });
+    expect(after.type === "session.list.result" && after.sessions.length).toBe(
+      3,
+    );
+
+    // Prompts route to the right session independently.
+    await h.request({ type: "prompt.send", sessionId: idA, text: "hi A" });
+    const evA = await h.waitFor(
+      (m) =>
+        m.type === "agent.event" &&
+        m.sessionId === idA &&
+        m.event.event.kind === "user_prompt",
+    );
+    expect(evA.type).toBe("agent.event");
+
+    // Stop one; the list shrinks and a broadcast reflects it.
+    const stopped = await h.request({ type: "session.stop", sessionId: idA });
+    expect(stopped.type).toBe("ok");
+    await h.waitFor(
+      (m) => m.type === "session.list.result" && m.sessions.length === 2,
+    );
+
+    // Stopping an unknown session errors.
+    const bad = await h.request({ type: "session.stop", sessionId: "nope" });
+    expect(bad.type).toBe("error");
   });
 });

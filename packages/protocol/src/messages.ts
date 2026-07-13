@@ -40,6 +40,15 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("agent.interrupt"),
     sessionId: z.string(),
   }),
+  /** Spawn a new agent session. cwd defaults to the supervisor's workspace. */
+  z.object({
+    type: z.literal("session.start"),
+    cwd: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("session.stop"),
+    sessionId: z.string(),
+  }),
   z.object({
     type: z.literal("escalation.decide"),
     escalationId: z.string(),

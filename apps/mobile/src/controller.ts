@@ -175,6 +175,28 @@ export function decideEscalation(
   sendMessage(conn, { type: "escalation.decide", escalationId, decision });
 }
 
+/** Spawn a new agent session and make it active (reply is its snapshot). */
+export async function startSession(): Promise<void> {
+  const { conn } = useBosun.getState();
+  if (!conn) return;
+  const snap = await makeRequester(conn)({ type: "session.start" });
+  useBosun.getState().applyServerMessage(snap as never);
+}
+
+/** Switch the active view to another session, replaying its snapshot. */
+export async function switchSession(sessionId: string): Promise<void> {
+  const { conn, activeSessionId } = useBosun.getState();
+  if (!conn || sessionId === activeSessionId) return;
+  const snap = await makeRequester(conn)({ type: "session.attach", sessionId });
+  useBosun.getState().applyServerMessage(snap as never);
+}
+
+export function stopSession(sessionId: string): void {
+  const { conn } = useBosun.getState();
+  if (!conn) return;
+  sendMessage(conn, { type: "session.stop", sessionId });
+}
+
 export async function unpair(): Promise<void> {
   intentionalClose = true;
   heartbeat?.stop();
