@@ -126,6 +126,13 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>]
     const qr = JSON.stringify(transport.buildQrPayload(token, expiresAt));
     console.log("\nScan with the Bosun app to pair (valid 10 min):\n");
     qrcode.generate(qr, { small: true }, (code) => console.log(code));
+    // Plaintext token + address for the app's manual-pair path (e.g. testing
+    // on the iOS Simulator, which has no camera to scan the QR).
+    const addr = transport.addresses()[0];
+    if (addr) {
+      console.log(`Or pair manually — address: ${addr.host}:${addr.port}`);
+    }
+    console.log(`                   token:   ${token}`);
   }
 
   const shutdown = async (): Promise<void> => {

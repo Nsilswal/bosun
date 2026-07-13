@@ -11,11 +11,15 @@
       "bundleIdentifier": "dev.bosun.app",
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Bosun connects directly to your own supervisor on your local network.",
-        "NSBonjourServices": ["_bosun._tcp", "_bosun._tcp."]
+        "NSBonjourServices": ["_bosun._tcp", "_bosun._tcp."],
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {
       "package": "dev.bosun.app",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#0E1116",
         "foregroundImage": "./assets/android-icon-foreground.png",
