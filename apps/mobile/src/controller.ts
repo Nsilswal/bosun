@@ -17,8 +17,15 @@ import {
   type TransportId,
 } from "./storage";
 import { useBosun } from "./store";
+import { backoffDelay } from "./net/backoff";
+import { Heartbeat } from "./net/heartbeat";
+
+const HEARTBEAT_INTERVAL_MS = 15_000;
+const HEARTBEAT_TIMEOUT_MS = 8_000;
 
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+let reconnectAttempts = 0;
+let heartbeat: Heartbeat | undefined;
 let intentionalClose = false;
 
 export async function boot(): Promise<void> {
@@ -84,17 +91,30 @@ export async function connect(): Promise<void> {
 
 async function adopt(conn: PeerConnection): Promise<void> {
   intentionalClose = false;
+  heartbeat?.stop(); // drop any heartbeat from a previous connection
   const store = useBosun.getState();
   const request = makeRequester(conn);
 
-  conn.onMessage((env) => {
-    useBosun.getState().applyServerMessage(env.msg as never);
-  });
-  conn.onClose(() => {
+  const onLost = (): void => {
     if (intentionalClose) return;
+    heartbeat?.stop();
     useBosun.getState().set({ phase: "reconnecting", conn: undefined });
     scheduleReconnect();
+  };
+
+  heartbeat = new Heartbeat({
+    intervalMs: HEARTBEAT_INTERVAL_MS,
+    timeoutMs: HEARTBEAT_TIMEOUT_MS,
+    sendPing: () => sendMessage(conn, { type: "ping" }),
+    onDead: onLost,
   });
+
+  conn.onMessage((env) => {
+    // Any inbound frame proves liveness; a pong specifically clears the wait.
+    heartbeat?.notifyActivity();
+    useBosun.getState().applyServerMessage(env.msg as never);
+  });
+  conn.onClose(onLost);
 
   store.set({ conn, phase: "connected" });
 
@@ -108,6 +128,10 @@ async function adopt(conn: PeerConnection): Promise<void> {
       ...(sinceSeq !== undefined ? { sinceSeq } : {}),
     }).then((snap) => useBosun.getState().applyServerMessage(snap));
   }
+
+  // Connected and attached: reset backoff and start liveness checks.
+  reconnectAttempts = 0;
+  heartbeat.start();
 
   void registerForPush((token) =>
     sendMessage(conn, { type: "push.register", expoPushToken: token }),
@@ -123,10 +147,11 @@ function latestSeqIfSameSession(sessionId: string): number | undefined {
 
 function scheduleReconnect(): void {
   if (reconnectTimer) return;
+  const delay = backoffDelay(++reconnectAttempts);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = undefined;
     void connect();
-  }, 2500);
+  }, delay);
 }
 
 export function sendPrompt(text: string): void {
@@ -152,6 +177,12 @@ export function decideEscalation(
 
 export async function unpair(): Promise<void> {
   intentionalClose = true;
+  heartbeat?.stop();
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = undefined;
+  }
+  reconnectAttempts = 0;
   useBosun.getState().conn?.close();
   await forgetSupervisor();
   useBosun.getState().reset();
