@@ -8,3 +8,4 @@ export * from "./p2p/endpoint.js";
 export * from "./p2p/server.js";
 export * from "./p2p/client.js";
 export * from "./factory.js";
+export * from "./composite.js";
