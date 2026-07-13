@@ -63,6 +63,18 @@ export class ClaudeAgentRunner implements AgentRunner {
         );
       }
 
+      // skip-permissions: enforce only the hard floor, never escalate — the
+      // agent runs unattended past the deterministic never-cross rules.
+      if (opts.skipPermissions) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: "PreToolUse",
+            permissionDecision: "allow",
+            permissionDecisionReason: "skip-permissions: hard floor passed",
+          },
+        };
+      }
+
       const result = await opts.broker.decide({
         sessionId: opts.localSessionId,
         toolUseId: toolUseID ?? "unknown",
@@ -83,7 +95,7 @@ export class ClaudeAgentRunner implements AgentRunner {
 
     const options: Options = {
       cwd: opts.cwd,
-      permissionMode: "default",
+      permissionMode: opts.skipPermissions ? "bypassPermissions" : "default",
       // Don't inherit the user's settings: their allow-rules would let tools
       // skip canUseTool, and their hooks don't belong in supervised sessions.
       settingSources: [],

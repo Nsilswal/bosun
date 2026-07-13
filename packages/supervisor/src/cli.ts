@@ -29,6 +29,7 @@ async function main(): Promise<void> {
       transport: { type: "string" },
       relay: { type: "string" },
       "no-pair": { type: "boolean" },
+      "dangerously-skip-permissions": { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -44,7 +45,11 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>]
   --port          LAN listen port (default: ${DEFAULT_PORT})
   --transport     lan (same network, default) or p2p (off-Wi-Fi, iroh)
   --relay         p2p only: n0 public relays (default) or disabled (direct)
-  --no-pair       don't print a pairing QR (already-paired devices only)`);
+  --no-pair       don't print a pairing QR (already-paired devices only)
+  --dangerously-skip-permissions
+                  run agents unattended: auto-approve everything except the
+                  hard-floor never-cross rules, no phone escalations. Only on
+                  a trusted machine.`);
     return;
   }
 
@@ -56,9 +61,12 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>]
   const allowlist = new DeviceAllowlist();
   const pairing = new PairingManager();
 
+  const skipPermissions = values["dangerously-skip-permissions"] === true;
   const queue = new InMemoryEscalationQueue(ESCALATION_TIMEOUT_MS);
   const broker = new Broker(new StarterPolicy(), queue);
-  const sessions = new SessionManager(new ClaudeAgentRunner(), broker);
+  const sessions = new SessionManager(new ClaudeAgentRunner(), broker, {
+    skipPermissions,
+  });
 
   const kind = values.transport === "p2p" ? "p2p" : "lan";
   const relay: RelayConfig =
@@ -91,6 +99,7 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>]
   });
 
   const protocol = new ProtocolServer(sessions, queue, {
+    defaultCwd: cwd,
     onPushRegister: (pk, token) => allowlist.setPushToken(pk, token),
     onEscalationNew: () => void sendEscalationPush(allowlist.pushTokens()),
   });
@@ -117,6 +126,9 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>]
   console.log(`  workspace: ${cwd}`);
   console.log(`  session:   ${session.id}`);
   console.log(`  transport: ${kind}${kind === "p2p" ? ` (relay: ${relay.mode})` : ""}`);
+  console.log(
+    `  mode:      ${skipPermissions ? "⚠ skip-permissions (unattended; hard floor only, no escalations)" : "supervised (escalations → phone)"}`,
+  );
   for (const a of transport.addresses()) {
     console.log(`  listening: ${a.host}:${a.port}`);
   }

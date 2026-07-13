@@ -77,25 +77,30 @@ export class Session {
 export class SessionManager {
   private sessions = new Map<string, Session>();
   private listeners = new Set<SessionListener>();
+  private changeListeners = new Set<() => void>();
 
   constructor(
     private readonly runner: AgentRunner,
     private readonly broker: PermissionBroker,
+    private readonly defaults: { skipPermissions?: boolean } = {},
   ) {}
 
-  start(cwd: string): Session {
+  start(cwd: string, opts: { skipPermissions?: boolean } = {}): Session {
     // The id must exist before the runner starts: the broker's tool requests
     // reference it, and escalations must agree with the event stream.
     const localSessionId = randomUUID();
+    const skipPermissions = opts.skipPermissions ?? this.defaults.skipPermissions;
     const handle = this.runner.start({
       localSessionId,
       cwd,
       broker: this.broker,
+      ...(skipPermissions !== undefined ? { skipPermissions } : {}),
     });
     const session = new Session(localSessionId, cwd, handle, (id, ev) => {
       for (const cb of this.listeners) cb(id, ev);
     });
     this.sessions.set(localSessionId, session);
+    this.notifyChange();
     return session;
   }
 
@@ -107,9 +112,29 @@ export class SessionManager {
     return [...this.sessions.values()].map((s) => s.summary());
   }
 
+  /** Stop and forget a session. Returns false if the id is unknown. */
+  async stop(id: string): Promise<boolean> {
+    const session = this.sessions.get(id);
+    if (!session) return false;
+    this.sessions.delete(id);
+    await session.stop().catch(() => undefined);
+    this.notifyChange();
+    return true;
+  }
+
   onEvent(cb: SessionListener): () => void {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
+  }
+
+  /** Notified whenever the set of sessions changes (start/stop). */
+  onChange(cb: () => void): () => void {
+    this.changeListeners.add(cb);
+    return () => this.changeListeners.delete(cb);
+  }
+
+  private notifyChange(): void {
+    for (const cb of this.changeListeners) cb();
   }
 
   async stopAll(): Promise<void> {

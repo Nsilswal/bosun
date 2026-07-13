@@ -16,6 +16,14 @@ export interface AgentStartOptions {
   broker: PermissionBroker;
   /** Resume a provider session (SDK `resume`). Handoff slice — unused today. */
   resumeProviderSessionId?: string;
+  /**
+   * Run the agent in bypassPermissions mode (Claude Code's
+   * --dangerously-skip-permissions). The SDK then never calls canUseTool, so
+   * the broker's escalation-to-phone path is OFF and the agent runs
+   * unattended. The deterministic hard-floor hook is still installed to
+   * attempt the never-cross rules. Only sensible on a trusted machine.
+   */
+  skipPermissions?: boolean;
 }
 
 export interface AgentHandle {
