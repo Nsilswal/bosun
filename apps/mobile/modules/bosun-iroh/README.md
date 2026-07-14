@@ -88,14 +88,18 @@ Verified in this repo (no device needed):
 - ✅ `expo prebuild -p ios` + `pod install` succeed: `BosunIroh` autolinks, the
   vendored `Iroh.xcframework` embeds, deployment target resolves to 17.5.
 
-Still to confirm **on device** (yours):
+- ✅ **iOS on-device build + link + install**: `xcodebuild` for `arm64-apple-ios17.5`
+  succeeds — `BosunIrohModule.swift` + iroh's `IrohLib.swift` compile and the app
+  **links against the vendored `Iroh.xcframework`** (every iroh symbol resolves),
+  producing a `Bosun.app` that installs and runs on an iPhone 17 Pro (iOS 26).
 
-1. **Swift/Kotlin compile + link** against the real xcframework/AAR.
-2. **Interop** with a supervisor started via `bosun` (default `--transport both`),
-   using `packages/transport/scripts/p2p-loopback.ts` as the behavior reference.
-3. **Off-Wi-Fi end-to-end**: phone on cellular, supervisor on home Wi-Fi — pair,
-   stream the live session, round-trip an escalation over P2P.
+Still to confirm:
 
-The Kotlin mirrors the verified Swift shape; its exact uniffi names should be
-confirmed on the first Android build. Until fully verified, this ships behind the
-optional-module fallback: absent the module, the app is unchanged (LAN-only).
+1. **Off-Wi-Fi runtime round-trip** (iOS): phone on cellular, supervisor on home
+   Wi-Fi — pair, stream the live session, round-trip an escalation over P2P.
+   Reference behavior: `packages/transport/scripts/p2p-loopback.ts`.
+2. **Android**: the Kotlin mirrors the verified Swift shape; its exact uniffi
+   names + build should be confirmed on the first Android build.
+
+Until the runtime round-trip is confirmed, this ships behind the optional-module
+fallback: absent the module, the app is unchanged (LAN-only).
