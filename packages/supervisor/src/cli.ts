@@ -4,7 +4,11 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import qrcode from "qrcode-terminal";
 import { Broker, InMemoryEscalationQueue, StarterPolicy } from "@bosun/broker";
-import { createTransportServer, type RelayConfig } from "@bosun/transport";
+import {
+  createTransportServers,
+  type RelayConfig,
+  type TransportKind,
+} from "@bosun/transport";
 import { ClaudeAgentRunner } from "./agent/claude-runner.js";
 import { PairingManager } from "./pairing.js";
 import { sendEscalationPush } from "./push.js";
@@ -19,6 +23,27 @@ import {
 const DEFAULT_PORT = 45450;
 const PAIRING_TTL_MS = 10 * 60 * 1000;
 const ESCALATION_TIMEOUT_MS = 10 * 60 * 1000;
+
+/**
+ * Map the `--transport` flag to the ordered kinds to serve. Default `both`
+ * runs LAN + P2P so a single pairing reaches the supervisor at home and away;
+ * LAN is listed first so the merged QR/logging leads with the fast local path.
+ */
+function parseTransportKinds(flag: string | undefined): TransportKind[] {
+  switch (flag) {
+    case "lan":
+      return ["lan"];
+    case "p2p":
+      return ["p2p"];
+    case undefined:
+    case "both":
+      return ["lan", "p2p"];
+    default:
+      throw new Error(
+        `unknown --transport "${flag}" (expected both, lan, or p2p)`,
+      );
+  }
+}
 
 async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
@@ -39,7 +64,7 @@ async function main(): Promise<void> {
     console.log(`bosun — supervise Claude Code agents from your phone
 
 usage: bosun [workspace-dir] [--name <name>] [--port <port>]
-             [--transport lan|p2p] [--relay n0|disabled] [--no-pair]
+             [--transport both|lan|p2p] [--relay n0|disabled] [--no-pair]
 
   workspace-dir   agent workspace (default: current directory)
   --name          supervisor name shown in the app (default: hostname)
@@ -47,7 +72,10 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>]
   --model         default model alias for new sessions (e.g. opus, sonnet,
                   haiku). The app can override per session. Default: inherit
                   the machine's Claude Code model.
-  --transport     lan (same network, default) or p2p (off-Wi-Fi, iroh)
+  --transport     both (LAN + off-Wi-Fi P2P, default), lan (same network
+                  only), or p2p (off-Wi-Fi only, iroh). "both" makes one
+                  pairing work at home and away; if the iroh addon is missing
+                  it degrades to LAN.
   --relay         p2p only: n0 public relays (default) or disabled (direct)
   --no-pair       don't print a pairing QR (already-paired devices only)
   --dangerously-skip-permissions
@@ -74,17 +102,15 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>]
     ...(model !== undefined ? { model } : {}),
   });
 
-  const kind = values.transport === "p2p" ? "p2p" : "lan";
+  const kinds = parseTransportKinds(values.transport);
   const relay: RelayConfig =
     values.relay === "disabled" ? { mode: "disabled" } : { mode: "n0" };
-  const transport = createTransportServer({
-    kind,
+  const wantsP2p = kinds.includes("p2p");
+  const transport = createTransportServers(kinds, {
     identity,
     name,
     port,
-    ...(kind === "p2p"
-      ? { irohSecretKey: loadOrCreateIrohSecret(), relay }
-      : {}),
+    ...(wantsP2p ? { irohSecretKey: loadOrCreateIrohSecret(), relay } : {}),
     isAuthorized: (pk) => allowlist.has(pk),
     onPairRequest: (req) => {
       if (!pairing.redeem(req.pairingToken)) {
@@ -132,7 +158,17 @@ usage: bosun [workspace-dir] [--name <name>] [--port <port>]
   console.log(`  workspace: ${cwd}`);
   console.log(`  session:   ${session.id}`);
   console.log(`  model:     ${model ?? "machine default"}`);
-  console.log(`  transport: ${kind}${kind === "p2p" ? ` (relay: ${relay.mode})` : ""}`);
+  const { started, failed } = transport.lastStart;
+  const p2pUp = started.includes("p2p");
+  console.log(
+    `  transport: ${started.join(" + ")}${p2pUp ? ` (p2p relay: ${relay.mode})` : ""}`,
+  );
+  for (const f of failed) {
+    console.log(
+      `  ⚠ ${f.kind} transport unavailable — ${f.error.message}\n` +
+        `    (off-Wi-Fi P2P needs the optional iroh addon; see docs/mobile-p2p.md)`,
+    );
+  }
   console.log(
     `  mode:      ${skipPermissions ? "⚠ skip-permissions (unattended; hard floor only, no escalations)" : "supervised (escalations → phone)"}`,
   );
