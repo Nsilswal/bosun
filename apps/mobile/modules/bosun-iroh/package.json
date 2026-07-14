@@ -1,0 +1,7 @@
+{
+  "name": "bosun-iroh",
+  "version": "0.1.0",
+  "description": "Expo native module: iroh QUIC transport for Bosun off-Wi-Fi P2P",
+  "main": "index.ts",
+  "private": true
+}

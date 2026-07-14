@@ -7,9 +7,13 @@ module that provides an iroh connection; everything above it (pairing,
 handshake, allowlist, encryption, protocol) already runs in JS over the
 `RawSocket` the module exposes — identical to the LAN path.
 
-Status: **not yet implemented.** In builds without it,
-`requireOptionalNativeModule("BosunIroh")` returns null and the app runs
-LAN-only. The JS contract and bridge are done (`src/transport/native-iroh.ts`).
+Status: **implemented, pending on-device build verification.** The module lives
+at `apps/mobile/modules/bosun-iroh` (Swift + Kotlin, wrapping iroh 1.0's uniffi
+bindings); see its [README](../apps/mobile/modules/bosun-iroh/README.md) for the
+build steps and the verification checklist. In builds without it (or before it
+compiles on device), `requireOptionalNativeModule("BosunIroh")` returns null and
+the app runs LAN-only. The JS contract and bridge are done
+(`src/transport/native-iroh.ts`).
 
 ## What the native module must provide
 

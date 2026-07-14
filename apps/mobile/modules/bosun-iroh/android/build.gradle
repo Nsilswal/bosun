@@ -1,0 +1,24 @@
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'expo.modules.bosuniroh'
+version = '0.1.0'
+
+android {
+  namespace 'expo.modules.bosuniroh'
+  defaultConfig {
+    // iroh's Android bindings target modern NDK/ABIs; SDK 24+ is the app floor.
+    minSdkVersion 24
+  }
+}
+
+repositories {
+  mavenCentral()
+}
+
+dependencies {
+  // iroh 1.0 Kotlin bindings, published to Maven Central as `computer.iroh:iroh`.
+  implementation 'computer.iroh:iroh:1.+'
+  // Coroutines: the iroh bindings are `suspend` functions and the read loop runs
+  // on Dispatchers.IO.
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+}
