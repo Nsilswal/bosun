@@ -1,0 +1,4 @@
+# iroh iOS artifacts fetched by scripts/fetch-iroh-ios.sh — large build
+# artifacts, never committed.
+ios/Iroh.xcframework/
+ios/iroh/IrohLib.swift
