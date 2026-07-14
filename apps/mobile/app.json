@@ -11,7 +11,10 @@
       "bundleIdentifier": "dev.bosun.app",
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Bosun connects directly to your own supervisor on your local network.",
-        "NSBonjourServices": ["_bosun._tcp", "_bosun._tcp."],
+        "NSBonjourServices": [
+          "_bosun._tcp",
+          "_bosun._tcp."
+        ],
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }
@@ -38,7 +41,18 @@
           "recordAudioAndroid": false
         }
       ],
-      ["expo-notifications", {}]
+      [
+        "expo-notifications",
+        {}
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "17.5"
+          }
+        }
+      ]
     ]
   }
 }

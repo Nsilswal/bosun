@@ -3,10 +3,11 @@ package expo.modules.bosuniroh
 import computer.iroh.BiStream
 import computer.iroh.Connection
 import computer.iroh.Endpoint
-import computer.iroh.EndpointBuilder
+import computer.iroh.EndpointOptions
 import computer.iroh.EndpointTicket
 import computer.iroh.RecvStream
 import computer.iroh.SendStream
+import computer.iroh.presetN0
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -64,11 +65,10 @@ class BosunIrohModule : Module() {
           val handle = UUID.randomUUID().toString()
 
           // n0 preset installs the rustls crypto provider and wires relays +
-          // discovery — the same preset the Node client applies.
-          val builder = EndpointBuilder()
-          builder.applyN0()
-          builder.alpns(listOf(BOSUN_ALPN))
-          val endpoint = builder.bind()
+          // discovery — the same preset the Node client applies. We advertise
+          // the Bosun ALPN so the supervisor accepts the connection.
+          val options = EndpointOptions(preset = presetN0(), alpns = listOf(BOSUN_ALPN))
+          val endpoint = Endpoint.bind(options)
 
           val addr = EndpointTicket.fromString(ticket).endpointAddr()
           val connection = endpoint.connect(addr, BOSUN_ALPN)

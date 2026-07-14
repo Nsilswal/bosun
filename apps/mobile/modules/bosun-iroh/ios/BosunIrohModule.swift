@@ -1,6 +1,11 @@
 import ExpoModulesCore
 import Foundation
-import IrohLib
+
+// iroh's generated Swift API (EndpointBuilder, Connection, BiStream, …) is
+// compiled into this same pod module from `iroh/IrohLib.swift` (fetched by
+// scripts/fetch-iroh-ios.sh), so there is no separate `IrohLib` module to
+// import — the types resolve directly. That generated file in turn does
+// `import Iroh`, which resolves to the vendored `Iroh.xcframework`.
 
 // Bosun's iroh ALPN — must match packages/transport/src/p2p/endpoint.ts
 // (`BOSUN_ALPN = bytes of "bosun/1"`). Bump on any wire-incompatible change.
@@ -47,11 +52,10 @@ public final class BosunIrohModule: Module {
       let handle = UUID().uuidString
 
       // n0 preset installs the rustls crypto provider and wires relays +
-      // discovery — the same preset the Node client applies.
-      let builder = EndpointBuilder()
-      builder.applyN0()
-      builder.alpns(alpns: [BOSUN_ALPN])
-      let endpoint = try await builder.bind()
+      // discovery — the same preset the Node client applies. We advertise the
+      // Bosun ALPN so the supervisor accepts the connection.
+      let options = EndpointOptions(preset: presetN0(), alpns: [BOSUN_ALPN])
+      let endpoint = try await Endpoint.bind(options: options)
 
       let addr = try EndpointTicket.fromString(str: ticket).endpointAddr()
       let connection = try await endpoint.connect(addr: addr, alpn: BOSUN_ALPN)

@@ -38,40 +38,64 @@ uniffi surface (`EndpointBuilder().applyN0()/alpns()/bind()`,
 life — releasing it drops iroh's driver future and kills the connection
 mid-session (the gotcha encoded in the Node `connectP2p`).
 
-## Build
+## iroh dependency
 
-Local Expo modules under `apps/mobile/modules/` autolink — no `app.json` change.
-They only compile in a **dev/prebuild** build (never Expo Go). From `apps/mobile`:
+iroh 1.0 is **not on CocoaPods** (only 0.20.0 is) — its Swift binding ships as a
+prebuilt `IrohLib.xcframework` on the [`v1.0.0` GitHub release](https://github.com/n0-computer/iroh-ffi/releases/tag/v1.0.0),
+plus a generated `IrohLib.swift`. So on iOS we **vendor** iroh's own artifacts
+(mirroring its `IrohLib` / `IrohLibFramework` podspecs) rather than depend on a
+pod. Fetch them before building:
 
 ```sh
-npx expo run:ios       # or: eas build --profile development --platform ios
-npx expo run:android   # or: --platform android
+apps/mobile/modules/bosun-iroh/scripts/fetch-iroh-ios.sh   # → ios/Iroh.xcframework + ios/iroh/IrohLib.swift (gitignored)
 ```
 
-Native dependencies (declared here, pulled by CocoaPods / Gradle):
-
-- iOS: `IrohLib` (`~> 1.0`) via CocoaPods — see `ios/BosunIroh.podspec`.
-- Android: `computer.iroh:iroh:1.+` from Maven Central — see `android/build.gradle`.
+iroh's xcframework requires **iOS 17.5+**, so the app's deployment target is
+bumped to 17.5 via `expo-build-properties` (see `app.json`). Your iPhone must run
+iOS 17.5 or newer. Android pulls `computer.iroh:iroh` from Maven Central (see
+`android/build.gradle`) — no fetch step.
 
 No extra iOS entitlement: iroh's relay + discovery use outbound HTTPS/QUIC (unlike
 LAN mDNS, which needs the multicast entitlement).
 
-## ⚠️ Verification status
+## Build (iOS, local device)
 
-The native sources are written against iroh-ffi's **documented 1.0 uniffi API**
-and the Expo SDK 57 module API, but have **not been compiled on device** — an
-iOS/Android native build with the Rust bindings can't run in CI-less dev here.
-Before merging into a release, build on device and confirm:
+Local Expo modules under `apps/mobile/modules/` autolink — no manual linking.
+They only compile in a **dev/prebuild** build (never Expo Go). From `apps/mobile`:
 
-1. **It compiles** against the resolved `IrohLib` / `computer.iroh:iroh` versions.
-   The likeliest touch-ups are uniffi byte-type mappings — this code assumes
-   `Vec<u8>` ⇄ Swift `Data` / Kotlin `ByteArray` and `u32` ⇄ Swift `UInt32` /
-   Kotlin `UInt`. Adjust if the generated bindings differ.
-2. **It interoperates** with a supervisor started via `bosun --transport p2p`
-   (or the default `both`), reusing `packages/transport/scripts/p2p-loopback.ts`
-   as the reference for correct behavior.
+```sh
+modules/bosun-iroh/scripts/fetch-iroh-ios.sh   # once (and to bump IROH_VERSION)
+npx expo run:ios --device                       # prebuild → pod install → build → install
+```
+
+If signing fails with a free Apple ID, open `ios/*.xcworkspace` in Xcode once,
+set the **BosunApp** target's Signing team to your personal team, then re-run.
+
+## Verification status
+
+Verified in this repo (no device needed):
+
+- ✅ `fetch-iroh-ios.sh` fetches the v1.0.0 xcframework (incl. the `ios-arm64`
+  device slice) + `IrohLib.swift`.
+- ✅ Every iroh call in the Swift is checked against the **actual generated
+  `IrohLib.swift` for v1.0.0** — `EndpointOptions(preset: presetN0(), alpns:
+  [Data])` + `Endpoint.bind(options:)`, `endpoint.connect(addr:alpn:)`,
+  `openBi()`, `bi.send()/recv()`, `SendStream.writeAll(buf: Data)`,
+  `RecvStream.readExact(size: UInt32) -> Data`, `close(errorCode: Int64, reason:
+  Data)`, `EndpointTicket.fromString(str:).endpointAddr()`. (The v1.0.0 Swift API
+  uses `EndpointOptions`, **not** the napi-style `EndpointBuilder().applyN0()`
+  flow — a real difference caught against the artifact.)
+- ✅ `expo prebuild -p ios` + `pod install` succeed: `BosunIroh` autolinks, the
+  vendored `Iroh.xcframework` embeds, deployment target resolves to 17.5.
+
+Still to confirm **on device** (yours):
+
+1. **Swift/Kotlin compile + link** against the real xcframework/AAR.
+2. **Interop** with a supervisor started via `bosun` (default `--transport both`),
+   using `packages/transport/scripts/p2p-loopback.ts` as the behavior reference.
 3. **Off-Wi-Fi end-to-end**: phone on cellular, supervisor on home Wi-Fi — pair,
-   then confirm the live session streams and an escalation round-trips over P2P.
+   stream the live session, round-trip an escalation over P2P.
 
-Until then, ship it behind the existing optional-module fallback: absent the
-module, the app is unchanged (LAN-only).
+The Kotlin mirrors the verified Swift shape; its exact uniffi names should be
+confirmed on the first Android build. Until fully verified, this ships behind the
+optional-module fallback: absent the module, the app is unchanged (LAN-only).
